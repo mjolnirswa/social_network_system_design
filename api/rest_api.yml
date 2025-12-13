@@ -1,0 +1,1041 @@
+openapi: 3.0.0
+
+tags:
+  - name: Posts
+    description: Управление постами
+  - name: Reactions
+    description: Оценки и реакции на посты
+  - name: Comments
+    description: Комментарии к постам
+  - name: Subscriptions
+    description: Подписки на пользователей
+  - name: Places
+    description: Популярные места для путешествий
+
+info:
+  title: Travel Social Network API
+  description: API для социальной сети путешественников
+  version: 1.0.0
+
+paths:
+  /posts:
+    post:
+      summary: Создать пост
+      description: Создание нового поста с фотографиями, описанием и привязкой к месту
+      tags:
+        - Posts
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                description:
+                  type: string
+                  description: Описание поста (максимум 300 символов)
+                  maxLength: 300
+                place_id:
+                  type: string
+                  format: uuid
+                  description: ID места путешествия
+                photos:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                  description: Фотографии поста (максимум 5)
+                  maxItems: 5
+              required:
+                - description
+                - place_id
+            examples:
+              request:
+                value:
+                  description: "Отличное путешествие в Париж!"
+                  place_id: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        201:
+          description: Пост успешно создан
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                    description: ID поста
+                  user_id:
+                    type: string
+                    format: uuid
+                    description: ID пользователя
+                  user_name:
+                    type: string
+                    description: Имя пользователя
+                  place_id:
+                    type: string
+                    format: uuid
+                    description: ID места
+                  description:
+                    type: string
+                    description: Описание поста
+                  attachment_ids:
+                    type: array
+                    items:
+                      type: string
+                      format: uuid
+                    description: ID прикрепленных фотографий
+                  attachment_urls:
+                    type: array
+                    items:
+                      type: string
+                      format: uri
+                    description: URL прикрепленных фотографий (например, ссылки на S3)
+                  reaction_count:
+                    type: integer
+                    description: Количество реакций
+                  comment_count:
+                    type: integer
+                    description: Количество комментариев
+                  created_at:
+                    type: string
+                    format: date-time
+                    description: Дата создания
+                required:
+                  - id
+                  - user_id
+                  - user_name
+                  - place_id
+                  - description
+                  - attachment_ids
+                  - attachment_urls
+                  - reaction_count
+                  - comment_count
+                  - created_at
+              examples:
+                response:
+                  value:
+                    id: "550e8400-e29b-41d4-a716-446655440001"
+                    user_id: "550e8400-e29b-41d4-a716-446655440002"
+                    user_name: "traveler123"
+                    place_id: "550e8400-e29b-41d4-a716-446655440000"
+                    description: "Отличное путешествие в Париж!"
+                    attachment_ids:
+                      - "550e8400-e29b-41d4-a716-446655440003"
+                    attachment_urls:
+                      - "https://s3.example.com/photos/550e8400-e29b-41d4-a716-446655440003.jpg"
+                    reaction_count: 0
+                    comment_count: 0
+                    created_at: "2024-01-15T10:30:00Z"
+        400:
+          description: Неверный запрос (превышены лимиты или неверные данные)
+        500:
+          description: Ошибка сервера
+
+    get:
+      summary: Получить посты
+      description: Получение постов с возможностью фильтрации. Если указан user_id - возвращаются посты конкретного пользователя. Если указан place_id - возвращаются посты, привязанные к конкретному месту. Если оба параметра не указаны - возвращается лента постов на основе подписок пользователя. Все посты возвращаются в обратном хронологическом порядке
+      tags:
+        - Posts
+      parameters:
+        - name: user_id
+          in: query
+          required: false
+          description: ID пользователя для фильтрации постов. Если не указан, возвращается лента по подпискам
+          schema:
+            type: string
+            format: uuid
+        - name: place_id
+          in: query
+          required: false
+          description: ID места для фильтрации постов. Возвращаются посты, привязанные к указанному месту
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          required: false
+          description: Количество постов для получения
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 100
+        - name: offset
+          in: query
+          required: false
+          description: Смещение для пагинации
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+      responses:
+        200:
+          description: Успешно получены посты
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  posts:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Post'
+                  total:
+                    type: integer
+                    description: Общее количество постов
+                  limit:
+                    type: integer
+                    description: Лимит записей
+                  offset:
+                    type: integer
+                    description: Смещение
+                required:
+                  - posts
+                  - total
+                  - limit
+                  - offset
+              examples:
+                response:
+                  value:
+                    posts:
+                      - id: "550e8400-e29b-41d4-a716-446655440001"
+                        user_id: "550e8400-e29b-41d4-a716-446655440002"
+                        user_name: "traveler123"
+                        place_id: "550e8400-e29b-41d4-a716-446655440000"
+                        description: "Отличное путешествие в Париж!"
+                        attachment_ids:
+                          - "550e8400-e29b-41d4-a716-446655440003"
+                        attachment_urls:
+                          - "https://s3.example.com/photos/550e8400-e29b-41d4-a716-446655440003.jpg"
+                        reaction_count: 15
+                        comment_count: 3
+                        created_at: "2024-01-15T10:30:00Z"
+                    total: 150
+                    limit: 10
+                    offset: 0
+        404:
+          description: Пользователь или место не найдены (если указан user_id или place_id)
+        500:
+          description: Ошибка сервера
+
+  /posts/{post_id}:
+    get:
+      summary: Получить пост по ID
+      description: Получение информации о конкретном посте
+      tags:
+        - Posts
+      parameters:
+        - name: post_id
+          in: path
+          required: true
+          description: ID поста
+          schema:
+            type: string
+            format: uuid
+      responses:
+        200:
+          description: Успешно получен пост
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Post'
+        404:
+          description: Пост не найден
+        500:
+          description: Ошибка сервера
+
+  /posts/{post_id}/reactions:
+    post:
+      summary: Добавить реакцию на пост
+      description: Добавление реакции (оценки) на пост. Один пользователь может добавить только одну реакцию на пост
+      tags:
+        - Reactions
+      parameters:
+        - name: post_id
+          in: path
+          required: true
+          description: ID поста
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                emoji:
+                  type: string
+                  description: Эмодзи реакции
+                  example: "👍"
+              required:
+                - emoji
+            examples:
+              request:
+                value:
+                  emoji: "👍"
+      responses:
+        201:
+          description: Реакция успешно добавлена
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                    description: ID реакции
+                  post_id:
+                    type: string
+                    format: uuid
+                    description: ID поста
+                  user_id:
+                    type: string
+                    format: uuid
+                    description: ID пользователя
+                  user_name:
+                    type: string
+                    description: Имя пользователя
+                  emoji:
+                    type: string
+                    description: Эмодзи реакции
+                  created_at:
+                    type: string
+                    format: date-time
+                    description: Дата создания
+                required:
+                  - id
+                  - post_id
+                  - user_id
+                  - user_name
+                  - emoji
+                  - created_at
+        400:
+          description: Неверный запрос (реакция уже существует)
+        404:
+          description: Пост не найден
+        500:
+          description: Ошибка сервера
+
+    delete:
+      summary: Удалить реакцию на пост
+      description: Удаление реакции пользователя на пост
+      tags:
+        - Reactions
+      parameters:
+        - name: post_id
+          in: path
+          required: true
+          description: ID поста
+          schema:
+            type: string
+            format: uuid
+      responses:
+        200:
+          description: Реакция успешно удалена
+        404:
+          description: Реакция или пост не найдены
+        500:
+          description: Ошибка сервера
+
+    get:
+      summary: Получить реакции на пост
+      description: Получение списка реакций на пост
+      tags:
+        - Reactions
+      parameters:
+        - name: post_id
+          in: path
+          required: true
+          description: ID поста
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          required: false
+          description: Количество реакций для получения
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 100
+        - name: offset
+          in: query
+          required: false
+          description: Смещение для пагинации
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+      responses:
+        200:
+          description: Успешно получены реакции
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  reactions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Reaction'
+                  total:
+                    type: integer
+                    description: Общее количество реакций
+                  limit:
+                    type: integer
+                    description: Лимит записей
+                  offset:
+                    type: integer
+                    description: Смещение
+                required:
+                  - reactions
+                  - total
+                  - limit
+                  - offset
+        404:
+          description: Пост не найден
+        500:
+          description: Ошибка сервера
+
+  /comments/{post_id}:
+    post:
+      summary: Добавить комментарий к посту
+      description: Добавление комментария к посту с возможностью прикрепления одной фотографии
+      tags:
+        - Comments
+      parameters:
+        - name: post_id
+          in: path
+          required: true
+          description: ID поста
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                content:
+                  type: string
+                  description: Текст комментария (максимум 150 символов)
+                  maxLength: 150
+                photo:
+                  type: string
+                  format: binary
+                  description: Фотография комментария (максимум 3MB, не более 1 фото)
+              required:
+                - content
+            examples:
+              request:
+                value:
+                  content: "Отличное место!"
+      responses:
+        201:
+          description: Комментарий успешно добавлен
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                    description: ID комментария
+                  post_id:
+                    type: string
+                    format: uuid
+                    description: ID поста
+                  user_id:
+                    type: string
+                    format: uuid
+                    description: ID пользователя
+                  user_name:
+                    type: string
+                    description: Имя пользователя
+                  content:
+                    type: string
+                    description: Текст комментария
+                  attachment_id:
+                    type: string
+                    format: uuid
+                    nullable: true
+                    description: ID прикрепленной фотографии (если есть)
+                  attachment_url:
+                    type: string
+                    format: uri
+                    nullable: true
+                    description: URL прикрепленной фотографии (например, ссылка на S3, если есть)
+                  created_at:
+                    type: string
+                    format: date-time
+                    description: Дата создания
+                required:
+                  - id
+                  - post_id
+                  - user_id
+                  - user_name
+                  - content
+                  - created_at
+              examples:
+                response:
+                  value:
+                    id: "550e8400-e29b-41d4-a716-446655440004"
+                    post_id: "550e8400-e29b-41d4-a716-446655440001"
+                    user_id: "550e8400-e29b-41d4-a716-446655440005"
+                    user_name: "traveler456"
+                    content: "Отличное место!"
+                    attachment_id: null
+                    attachment_url: null
+                    created_at: "2024-01-15T11:00:00Z"
+        400:
+          description: Неверный запрос (превышены лимиты или неверные данные)
+        404:
+          description: Пост не найден
+        500:
+          description: Ошибка сервера
+
+    get:
+      summary: Получить комментарии к посту
+      description: Получение списка комментариев к посту
+      tags:
+        - Comments
+      parameters:
+        - name: post_id
+          in: path
+          required: true
+          description: ID поста
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          required: false
+          description: Количество комментариев для получения
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+        - name: offset
+          in: query
+          required: false
+          description: Смещение для пагинации
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+      responses:
+        200:
+          description: Успешно получены комментарии
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  comments:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Comment'
+                  total:
+                    type: integer
+                    description: Общее количество комментариев
+                  limit:
+                    type: integer
+                    description: Лимит записей
+                  offset:
+                    type: integer
+                    description: Смещение
+                required:
+                  - comments
+                  - total
+                  - limit
+                  - offset
+        404:
+          description: Пост не найден
+        500:
+          description: Ошибка сервера
+
+  /comments/{comment_id}:
+    delete:
+      summary: Удалить комментарий
+      description: Удаление комментария по его ID. Удалить комментарий может только его автор
+      tags:
+        - Comments
+      parameters:
+        - name: comment_id
+          in: path
+          required: true
+          description: ID комментария
+          schema:
+            type: string
+            format: uuid
+      responses:
+        200:
+          description: Комментарий успешно удален
+        403:
+          description: Доступ запрещен (попытка удалить чужой комментарий)
+        404:
+          description: Комментарий не найден
+        500:
+          description: Ошибка сервера
+
+  /users/{user_id}/subscribe:
+    post:
+      summary: Подписаться на пользователя
+      description: Создание подписки на другого пользователя для отслеживания его активности
+      tags:
+        - Subscriptions
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          description: ID пользователя, на которого подписываются
+          schema:
+            type: string
+            format: uuid
+      responses:
+        201:
+          description: Подписка успешно создана
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                    description: ID подписки
+                  subscriber_id:
+                    type: string
+                    format: uuid
+                    description: ID подписчика
+                  author_id:
+                    type: string
+                    format: uuid
+                    description: ID автора, на которого подписались
+                  created_at:
+                    type: string
+                    format: date-time
+                    description: Дата создания подписки
+                required:
+                  - id
+                  - subscriber_id
+                  - author_id
+                  - created_at
+        400:
+          description: Неверный запрос (уже подписан или попытка подписки на себя)
+        404:
+          description: Пользователь не найден
+        500:
+          description: Ошибка сервера
+
+    delete:
+      summary: Отписаться от пользователя
+      description: Удаление подписки на пользователя
+      tags:
+        - Subscriptions
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          description: ID пользователя, от которого отписываются
+          schema:
+            type: string
+            format: uuid
+      responses:
+        200:
+          description: Подписка успешно удалена
+        404:
+          description: Подписка или пользователь не найдены
+        500:
+          description: Ошибка сервера
+
+  /users/{user_id}/subscriptions:
+    get:
+      summary: Получить подписки пользователя
+      description: Получение списка пользователей, на которых подписан указанный пользователь
+      tags:
+        - Subscriptions
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          description: ID пользователя
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          required: false
+          description: Количество подписок для получения
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+        - name: offset
+          in: query
+          required: false
+          description: Смещение для пагинации
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+      responses:
+        200:
+          description: Успешно получены подписки
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  subscriptions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Subscription'
+                  total:
+                    type: integer
+                    description: Общее количество подписок
+                  limit:
+                    type: integer
+                    description: Лимит записей
+                  offset:
+                    type: integer
+                    description: Смещение
+                required:
+                  - subscriptions
+                  - total
+                  - limit
+                  - offset
+        404:
+          description: Пользователь не найден
+        500:
+          description: Ошибка сервера
+
+  /users/{user_id}/subscribers:
+    get:
+      summary: Получить подписчиков пользователя
+      description: Получение списка пользователей, которые подписаны на указанного пользователя
+      tags:
+        - Subscriptions
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          description: ID пользователя
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          required: false
+          description: Количество подписчиков для получения
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+        - name: offset
+          in: query
+          required: false
+          description: Смещение для пагинации
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+      responses:
+        200:
+          description: Успешно получены подписчики
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  subscribers:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Subscription'
+                  total:
+                    type: integer
+                    description: Общее количество подписчиков
+                  limit:
+                    type: integer
+                    description: Лимит записей
+                  offset:
+                    type: integer
+                    description: Смещение
+                required:
+                  - subscribers
+                  - total
+                  - limit
+                  - offset
+        404:
+          description: Пользователь не найден
+        500:
+          description: Ошибка сервера
+
+  /places/popular:
+    get:
+      summary: Получить популярные места
+      description: Получение списка популярных мест для путешествий с постами (максимум 20 записей на страницу)
+      tags:
+        - Places
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          description: Количество мест для получения
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 20
+        - name: offset
+          in: query
+          required: false
+          description: Смещение для пагинации
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+      responses:
+        200:
+          description: Успешно получены популярные места
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  places:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PopularPlace'
+                  total:
+                    type: integer
+                    description: Общее количество мест
+                  limit:
+                    type: integer
+                    description: Лимит записей
+                  offset:
+                    type: integer
+                    description: Смещение
+                required:
+                  - places
+                  - total
+                  - limit
+                  - offset
+              examples:
+                response:
+                  value:
+                    places:
+                      - place_id: "550e8400-e29b-41d4-a716-446655440000"
+                        place_name: "Париж, Франция"
+                        post_count: 1250
+                        posts:
+                          - id: "550e8400-e29b-41d4-a716-446655440001"
+                            user_id: "550e8400-e29b-41d4-a716-446655440002"
+                            user_name: "traveler123"
+                            description: "Отличное путешествие в Париж!"
+                            attachment_ids:
+                              - "550e8400-e29b-41d4-a716-446655440003"
+                            attachment_urls:
+                              - "https://s3.example.com/photos/550e8400-e29b-41d4-a716-446655440003.jpg"
+                            reaction_count: 15
+                            comment_count: 3
+                            created_at: "2024-01-15T10:30:00Z"
+                    total: 500
+                    limit: 20
+                    offset: 0
+        500:
+          description: Ошибка сервера
+
+components:
+  schemas:
+    Post:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: ID поста
+        user_id:
+          type: string
+          format: uuid
+          description: ID пользователя
+        user_name:
+          type: string
+          description: Имя пользователя
+        place_id:
+          type: string
+          format: uuid
+          description: ID места
+        description:
+          type: string
+          description: Описание поста
+        attachment_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: ID прикрепленных фотографий
+        attachment_urls:
+          type: array
+          items:
+            type: string
+            format: uri
+          description: URL прикрепленных фотографий (например, ссылки на S3)
+        reaction_count:
+          type: integer
+          description: Количество реакций
+        comment_count:
+          type: integer
+          description: Количество комментариев
+        created_at:
+          type: string
+          format: date-time
+          description: Дата создания
+      required:
+        - id
+        - user_id
+        - user_name
+        - place_id
+        - description
+        - attachment_ids
+        - reaction_count
+        - comment_count
+        - created_at
+
+    Reaction:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: ID реакции
+        post_id:
+          type: string
+          format: uuid
+          description: ID поста
+        user_id:
+          type: string
+          format: uuid
+          description: ID пользователя
+        user_name:
+          type: string
+          description: Имя пользователя
+        emoji:
+          type: string
+          description: Эмодзи реакции
+        created_at:
+          type: string
+          format: date-time
+          description: Дата создания
+      required:
+        - id
+        - post_id
+        - user_id
+        - user_name
+        - emoji
+        - created_at
+
+    Comment:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: ID комментария
+        post_id:
+          type: string
+          format: uuid
+          description: ID поста
+        user_id:
+          type: string
+          format: uuid
+          description: ID пользователя
+        user_name:
+          type: string
+          description: Имя пользователя
+        content:
+          type: string
+          description: Текст комментария
+        attachment_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: ID прикрепленной фотографии (если есть)
+        attachment_url:
+          type: string
+          format: uri
+          nullable: true
+          description: URL прикрепленной фотографии (например, ссылка на S3, если есть)
+        created_at:
+          type: string
+          format: date-time
+          description: Дата создания
+      required:
+        - id
+        - post_id
+        - user_id
+        - user_name
+        - content
+        - created_at
+
+    Subscription:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: ID подписки
+        subscriber_id:
+          type: string
+          format: uuid
+          description: ID подписчика
+        author_id:
+          type: string
+          format: uuid
+          description: ID автора, на которого подписались
+        created_at:
+          type: string
+          format: date-time
+          description: Дата создания подписки
+      required:
+        - id
+        - subscriber_id
+        - author_id
+        - created_at
+
+    PopularPlace:
+      type: object
+      properties:
+        place_id:
+          type: string
+          format: uuid
+          description: ID места
+        place_name:
+          type: string
+          description: Название места
+        post_count:
+          type: integer
+          description: Количество постов в этом месте
+        posts:
+          type: array
+          items:
+            $ref: '#/components/schemas/Post'
+          description: Посты с этого места
+      required:
+        - place_id
+        - place_name
+        - post_count
+        - posts
+
